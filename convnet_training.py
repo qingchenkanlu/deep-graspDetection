@@ -119,9 +119,9 @@ def angle_diff(y_true, y_pred):
 # Defining the network architecture
 def network_model():
     # Import ResNet50 with imagenet weights
-    conv_base = InceptionResNetV2(weights='imagenet',
-                                  include_top=False,
-                                  input_shape=(TARGET_IMAGE_WIDTH, TARGET_IMAGE_WIDTH, 3))
+    conv_base = VGG16(weights='imagenet',
+                      include_top=False,
+                      input_shape=(TARGET_IMAGE_WIDTH, TARGET_IMAGE_WIDTH, 3))
 
     # Initiate the sequential model
     model = models.Sequential()
@@ -139,7 +139,7 @@ def network_model():
 
     # Compile with Adam optimizer
     adam = optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-    model.compile(optimizer='adam', loss='mse', metrics=[angle_diff])
+    model.compile(optimizer='adam', loss='mse', metrics=['acc'])
 
     return model
 
@@ -157,29 +157,31 @@ def network_training():
     datagen = ImageDataGenerator(rotation_range=5,
                                  width_shift_range=0.2,
                                  height_shift_range=0.2,
-                                 validation_split=0.2)
+                                 validation_split=0.2,
+                                 )
 
     # Read the data
     (x_train, y_train) = read_cgd_data(SAMPLE_NUMBR)
 
     # Model definition & raining params
     model = network_model()
-    epochs = 100
+    epochs = 30
     batch_size = 32
 
     # Create callbacks for Tensorboard
-    callbacks = [
-        keras.callbacks.TensorBoard(
-            log_dir='logged_data',
-            histogram_freq=1,
-            embeddings_freq=1
+    callback_list = [
+        keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.1,
+            patience=10,
         )
     ]
 
     # Fits the model on batches with real-time data augmentation
     history = model.fit_generator(datagen.flow(x_train, y_train, batch_size=batch_size, subset="training"),
                                   steps_per_epoch=len(x_train) / batch_size, epochs=epochs,
-                                  #callbacks=callbacks,
+                                  callbacks=callback_list,
+                                  validation_data=(datagen.flow(x_train, y_train, batch_size=batch_size, subset="validation")),
                                   verbose=1)
 
     return model
