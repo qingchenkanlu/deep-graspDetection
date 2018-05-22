@@ -22,6 +22,8 @@ import numpy as np
 import pypcd
 import time
 
+import convnet_training
+
 
 BASE_DIR = '/media/baxter/DataDisk/Cornell Grasps Dataset/original'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
@@ -34,13 +36,13 @@ TEST_START_INSTANCE = 1000 #Initial CGD instance for test data is pcd1000.png & 
 TEST_INSTANCE_RANGE = 1035 #(1000:1034) instances are for testing
 
 # Data augmentation params
-NUMBER_AUGMENT_SAMPLES = 3 #Augmented samples per original image+label 
+NUMBER_AUGMENT_SAMPLES = 2 #Augmented samples per original image+label
 DX = np.random.randint(-16, 16, size=NUMBER_AUGMENT_SAMPLES) #Variation of the augmentation
 
 # Save data dir
-SAVE_PATH = '/media/baxter/DataDisk/Cornell Grasps Dataset/rgb_aug'
+SAVE_PATH = '/media/baxter/DataDisk/Cornell Grasps Dataset/rgb_aug_1'
 TRAIN_SAVE = os.path.join(SAVE_PATH, 'train')
-TEST_SAVE = os.path.join(SAVE_PATH, 'test') #No-need as the test set is not augmented
+TEST_SAVE = os.path.join(SAVE_PATH, 'test') # the test set is not augmented
 
 
 # Make dirs for saving
@@ -112,7 +114,7 @@ def bboxes_to_grasps(box):
     else:
         tan = min(tan, 57)
         
-    theta = np.arctan(tan)
+    theta = 100 * np.arctan(tan)
     tan = 10*tan
     
     h = np.sqrt(np.power(box[2]-box[0], 2) + np.power(box[3]-box[1], 2))
@@ -132,8 +134,28 @@ def save_datapoint(img_file, grasp_array, save_instance, save_dir):
     np.savetxt(save_grasp_filename, grasp_array)
 
 
+# Function for creating test images with much less augmentation and minor scaling
+def save_test_data():
+    print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Test data saving...')
+    save_int = 0
+
+    for instance_num in range(TEST_START_INSTANCE, TEST_INSTANCE_RANGE):
+        bboxes = open_bbox(instance_num, TEST_DIR)
+
+        for box_num in range(0, len(bboxes), 8):
+            # No augmentation
+            grasps = bboxes_to_grasps(bboxes[box_num:box_num + 8])
+            img = open_image(instance_num, TEST_DIR)
+            resized_img = img.resize((TARGET_IMAGE_WIDTH, TARGET_IMAGE_WIDTH))
+
+            # save grasps, img
+            save_datapoint(resized_img, grasps, save_int, TEST_SAVE)
+            print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Test datapoint # saved:' + str(save_int))
+            save_int = save_int + 1
+
+
 # Continuous data augmentation
-def run_augmentation():
+def run_train_data_augmentation():
     print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Data augmentation...')
     save_int = 0
 
@@ -148,7 +170,7 @@ def run_augmentation():
 
             # save grasps, img
             save_datapoint(resized_img, grasps, save_int, TRAIN_SAVE)
-            print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Datapoint # saved:' + str(save_int))
+            print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Train datapoint # saved:' + str(save_int))
             save_int = save_int + 1
 
             # X-trans augmentation
@@ -159,7 +181,7 @@ def run_augmentation():
 
                 # save grasps, trans imgs
                 save_datapoint(trans_img, grasps, save_int, TRAIN_SAVE)
-                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Datapoint # saved:' + str(save_int))
+                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Train datapoint # saved:' + str(save_int))
                 save_int = save_int + 1
 
             # Y-trans augmentation
@@ -170,7 +192,7 @@ def run_augmentation():
 
                 # save grasps, trans imgs
                 save_datapoint(trans_img, grasps, save_int, TRAIN_SAVE)
-                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Datapoint # saved:' + str(save_int))
+                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Train datapoint # saved:' + str(save_int))
                 save_int = save_int + 1
 
             # Rot augmentation
@@ -182,14 +204,15 @@ def run_augmentation():
 
                 # save grasps, trans imgs
                 save_datapoint(rot_resized_img, grasps, save_int, TRAIN_SAVE)
-                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Datapoint # saved:' + str(save_int))
+                print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Train datapoint # saved:' + str(save_int))
                 save_int = save_int + 1
 
     print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Data augmentation: DONE')
-    print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Nmbr of datapoints saved:' + str(save_int - 1))
+    print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime()) + ': Nmbr of train datapoints saved:' + str(save_int - 1))
 
 
 if __name__ == '__main__':
     print(time.strftime("%Y-%m-%d %H.%M.%S", time.localtime())+': Data Augmentation & Writing- by Shehan Caldera')
     make_save_dir()
-    run_augmentation()
+    run_train_data_augmentation()
+    save_test_data()
